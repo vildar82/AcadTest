@@ -17,19 +17,49 @@
     using FlaUI.UIA3;
     using Application = Autodesk.AutoCAD.ApplicationServices.Core.Application;
     using DBObject = Autodesk.AutoCAD.DatabaseServices.DBObject;
-    using Table = Autodesk.AutoCAD.DatabaseServices.Table;
 
     public class Commands
     {
-        [CommandMethod("TestGetSelection", CommandFlags.Modal)]
-        public void TestArcDim()
+        [CommandMethod("Test", CommandFlags.Modal)]
+        public void Test()
         {
-            var doc = AcadHelper.Doc;
-            var db = doc.Database;
+            var doc = Application.DocumentManager.MdiActiveDocument;
+            var selRes = doc.Editor.GetEntity("Выбор колодца");
+            if (selRes.Status != PromptStatus.OK) return;
+
             using var t = doc.TransactionManager.StartTransaction();
-            var table = db.MS().GetObjects<Table>().FirstOrDefault();
-            var cel = table.Cells[0, 0];
+            var s = selRes.ObjectId.GetObject(OpenMode.ForWrite, false, true) as Structure;
+            if (s == null)
+            {
+                Log("Это не колодец");
+                return;
+            }
+
+            var partData = s.PartData;
+
+            foreach (var f in partData.GetAllDataFields().OrderBy(o => o.Name))
+            {
+                Log(
+                    $"{f.Name}={f.Value}, {f.Description}, Context={f.Context}, Units={f.Units}, IsReadOnly={f.IsReadOnly}");
+            }
+
+            var field = partData.GetDataFieldBy("Mark");
+            if (field == null)
+            {
+                Log("Не найден параметр марки");
+                return;
+            }
+
+            var newValue = field.ValueList[3];
+            field.Value = newValue;
+            s.PartData = partData;
             t.Commit();
+        }
+
+        private static void Log(string msg)
+        {
+            var ed = Application.DocumentManager.MdiActiveDocument.Editor;
+            ed.WriteMessage($"{msg}\n");
         }
 
         private AlignmentLine GetLineAfter(AlignmentLine line, Alignment align)
